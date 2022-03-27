@@ -8,7 +8,7 @@ what is needed. I've designed it to create an RSS feed for my homepage.
 ## Installing
 
     git clone https://github.com/tylerneylon/rss.git
-    sudo ln -s $(cd rss; pwd)/fh.py /usr/local/bin/rss
+    sudo ln -s $(cd rss; pwd)/rss.py /usr/local/bin/rss
 
 After this, you should be able to use the tool via the command `rss`.
 This assumes that `/usr/local/bin` is in your path; it typically is.
