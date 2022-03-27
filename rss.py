@@ -5,6 +5,16 @@
 
     A simple tool to create and maintain rss feed files.
     This is an RSS *writer*, not a reader.
+
+    Usage:
+
+        # When you have a new post directory, cd into the directory of that
+        # post and run this, then edit fields in the new rss_items.json file:
+        rss.py post
+
+        # When you add a new post to a directory with an existing rss_items.json
+        # file; similar you will need to edit fields after you run this:
+        rss.py append
 """
 
 
@@ -49,6 +59,10 @@ def make_new_post_obj():
     }
 
 def make_new_post_json_file():
+    if os.path.exists(ITEMS_FILENAME):
+        print(f'Error: The file {ITEMS_FILENAME} already exists.')
+        print('Use the append command to add a post to an existing file.')
+        exit(1)
     obj = make_new_post_obj()
     with open(ITEMS_FILENAME, 'w') as f:
         json.dump([obj], f, indent=4, sort_keys=True)
