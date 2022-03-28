@@ -8,13 +8,22 @@
 
     Usage:
 
-        # When you have a new post directory, cd into the directory of that
-        # post and run this, then edit fields in the new rss_items.json file:
-        rss.py post
+        # When you have a new post, cd into the directory of that post and run
+        # this, then edit the fields in the rss_items.json file:
+        rss.py post [filename_of_post_html]
 
-        # When you add a new post to a directory with an existing rss_items.json
-        # file; similar you will need to edit fields after you run this:
-        rss.py append
+        # Run this command to designate the local root directory of your
+        # website. This creates a template rss_root.json file for you to edit,
+        # and this root directory is used to infer what the url paths will be to
+        # posts in subdirectories:
+        rss.py root
+
+        # Run this command to verify that rss_{root,items}.json files are
+        # correctly formatted. If you run this in the root directory without any
+        # parameters, it checks the validity of all rss_{root,items}.json files
+        # recursively:
+        rss.py check [json_filename]
+
 """
 
 
