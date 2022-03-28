@@ -50,6 +50,7 @@ from email    import utils
 # Globals and Constants
 
 ITEMS_FILENAME = 'rss_items.json'
+ROOT_FILENAME  = 'rss_root.json'
 
 # Escape codes for terminal writing. These are set up in init().
 red    = None
@@ -66,6 +67,11 @@ DEFAULT_ITEM_VALUES = {
     'description': 'DESCRIPTION',
     'author'     : 'AUTHOR',
     'pubDate'    : 'DATE'
+}
+DEFAULT_ROOT_VALUES = {
+    'title':       'TITLE',
+    'link':        'LINK',
+    'description': 'DESCRIPTION'
 }
 
 # Return values from check_file().
@@ -127,6 +133,17 @@ def add_new_post():
         json.dump(data + [obj], f, indent=4, sort_keys=True)
     print(f'Wrote template post data to {ITEMS_FILENAME}')
 
+def make_root_json_file():
+    if os.path.exists(ROOT_FILENAME):
+        show(ERROR, f'Root file already exists: {ROOT_FILENAME}')
+    else:
+        obj = copy.copy(DEFAULT_ROOT_VALUES)
+        obj['rootDir'] = '.'
+        obj['rssFilename'] = 'feed'
+        with open(ROOT_FILENAME, 'w') as f:
+            json.dump(obj, f, indent=4)
+        print(f'Wrote template root data to {ROOT_FILENAME}')
+
 # This returns 'good', 'default_present', or 'error'.
 def check_file(filepath, do_print=True):
     ret_value = GOOD
@@ -179,6 +196,8 @@ if __name__ == '__main__':
         else:
             filename = sys.argv[2]
             check_file(filename)
+    elif action == 'root':
+        make_root_json_file()
     else:
         show(ERROR, f'Unrecognized action: {action}')
 
