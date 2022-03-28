@@ -10,18 +10,23 @@
 
         # When you have a new post, cd into the directory of that post and run
         # this, then edit the fields in the rss_items.json file:
-        rss.py post [filename_of_post_html]
+
+        rss.py post [filename_of_post_html_file]
+
 
         # Run this command to designate the local root directory of your
         # website. This creates a template rss_root.json file for you to edit,
         # and this root directory is used to infer what the url paths will be to
         # posts in subdirectories:
+
         rss.py root
+
 
         # Run this command to verify that rss_{root,items}.json files are
         # correctly formatted. If you run this in the root directory without any
         # parameters, it checks the validity of all rss_{root,items}.json files
         # recursively:
+
         rss.py check [json_filename]
 
 """
@@ -136,7 +141,7 @@ def check_file(filepath):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 2 or sys.argv[1] == 'help':
         show_usage_and_exit()
 
     init()
