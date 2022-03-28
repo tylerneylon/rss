@@ -32,6 +32,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
@@ -40,13 +41,35 @@ from email    import utils
 
 
 # __________________________________________________________________________
-# Constants
+# Globals and Constants
 
 ITEMS_FILENAME = 'rss_items.json'
+
+# Escape codes for terminal writing. These are set up in init().
+red    = None
+yellow = None
+normal = None
+
+NORMAL  = 0
+WARNING = 1
+ERROR   = 2
 
 
 # __________________________________________________________________________
 # Functions
+
+def init():
+    global red, yellow, normal
+    red    = subprocess.check_output('tput setaf 1'.split())
+    yellow = subprocess.check_output('tput setaf 3'.split())
+    normal = subprocess.check_output('tput sgr0'.split())
+
+def show(level, msg):
+    if level == WARNING:
+        sys.stdout.buffer.write(yellow + b'Warning: ' + normal)
+    if level == ERROR:
+        sys.stdout.buffer.write(red    + b'Error: '   + normal)
+    print(msg)
 
 def show_usage_and_exit():
     exec_name = os.path.basename(sys.argv[0])
@@ -77,6 +100,12 @@ def make_new_post_json_file():
         json.dump([obj], f, indent=4, sort_keys=True)
     print(f'Wrote template json file to {ITEMS_FILENAME}')
 
+def check_file(filepath):
+    # TODO Add validity check for rss_root.json.
+    basename = os.path.basename(filepath)
+    if basename != ITEMS_FILENAME:
+        print('WARNING OMG WARNING')
+
 
 # __________________________________________________________________________
 # Main
@@ -86,8 +115,18 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         show_usage_and_exit()
 
+    init()
     action = sys.argv[1]
 
     if action == 'post':
         make_new_post_json_file()
+    elif action == 'check':
+        if len(sys.argv) < 3:
+            pass  # TODO Handle the no-filename case.
+            exit(0)
+        else:
+            filename = sys.argv[2]
+            check_file(filename)
+    else:
+        show(ERROR, f'Unrecognized action: {action}')
 
