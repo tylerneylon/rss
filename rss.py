@@ -54,6 +54,14 @@ NORMAL  = 0
 WARNING = 1
 ERROR   = 2
 
+DEFAULT_ITEM_VALUES = {
+    'title'      : 'TITLE',
+    'link'       : 'URL',
+    'description': 'DESCRIPTION',
+    'author'     : 'AUTHOR',
+    'pubDate'    : 'DATE'
+}
+
 
 # __________________________________________________________________________
 # Functions
@@ -66,9 +74,9 @@ def init():
 
 def show(level, msg):
     if level == WARNING:
-        sys.stdout.buffer.write(yellow + b'Warning: ' + normal)
+        sys.stdout.buffer.write(yellow + b'zomg warning: ' + normal)
     if level == ERROR:
-        sys.stdout.buffer.write(red    + b'Error: '   + normal)
+        sys.stdout.buffer.write(red    + b'zomg error: '   + normal)
     print(msg)
 
 def show_usage_and_exit():
@@ -82,11 +90,12 @@ def get_date_str():
     return utils.format_datetime(datetime.now().astimezone())
 
 def make_new_post_obj():
+    defaults = DEFAULT_ITEM_VALUES
     return {
-            'title'      : 'TITLE',
-            'link'       : 'URL',  # TODO
-            'description': 'DESCRIPTION',
-            'author'     : 'AUTHOR',
+            'title'      : defaults['TITLE'],
+            'link'       : defaults['URL'],  # TODO
+            'description': defaults['DESCRIPTION'],
+            'author'     : defaults['AUTHOR'],
             'pubDate'    : get_date_str()
     }
 
@@ -104,7 +113,22 @@ def check_file(filepath):
     # TODO Add validity check for rss_root.json.
     basename = os.path.basename(filepath)
     if basename != ITEMS_FILENAME:
-        print('WARNING OMG WARNING')
+        show(WARNING, f'Invalid rss filename: {basename}')
+    else:
+        with open(filepath) as f:
+            try:
+                data = json.load(f)
+            except json.decoder.JSONDecodeError as err:
+                show(ERROR, f'Unable to parse the JSON in file {filepath}')
+                print(err)
+        required_fields = ['title', 'link', 'description', 'author', 'pubDate']
+        for i, item in enumerate(data):
+            for field in required_fields:
+                if field not in item:
+                    show(ERROR, f'Missing field in item {i}: {field}')
+                elif item[field] == DEFAULT_ITEM_VALUES[field]:
+                    show(WARNING, f'Default value in item {i}: {field}')
+                    print('You probably want to customize before publishing')
 
 
 # __________________________________________________________________________
