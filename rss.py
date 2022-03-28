@@ -149,10 +149,7 @@ def check_file(filepath, do_print=True):
     ret_value = GOOD
     # TODO Add validity check for rss_root.json.
     basename = os.path.basename(filepath)
-    if basename != ITEMS_FILENAME:
-        if do_print: show(WARNING, f'Invalid rss filename: {basename}')
-        return ERROR
-    else:
+    if basename == ITEMS_FILENAME:
         with open(filepath) as f:
             try:
                 data = json.load(f)
@@ -173,6 +170,36 @@ def check_file(filepath, do_print=True):
                         show(WARNING, f'Default value in item {i}: {field}')
                         print('You might want to customize before publishing')
                     if ret_value != ERROR: ret_value = DEFAULT_PRESENT
+    if basename == ROOT_FILENAME:
+        with open(filepath) as f:
+            try:
+                data = json.load(f)
+            except json.decoder.JSONDecodeError as err:
+                if do_print:
+                    show(ERROR, f'Unable to parse the JSON in file {filepath}')
+                    print(err)
+                ret_value = ERROR
+        required_fields = [
+                'title',
+                'link',
+                'description',
+                'rootDir',
+                'rssFilename'
+        ]
+        for field in required_fields:
+            defaults = DEFAULT_ROOT_VALUES
+            if field not in data:
+                if do_print:
+                    show(ERROR, f'Missing field: {field}')
+                ret_value = ERROR
+            elif field in defaults and data[field] == defaults[field]:
+                if do_print:
+                    show(WARNING, f'Default value in field: {field}')
+                    print('You might want to customize before publishing')
+                if ret_value != ERROR: ret_value = DEFAULT_PRESENT
+    else:
+        if do_print: show(ERROR, f'Invalid rss filename: {basename}')
+        return ERROR
     return ret_value
 
 
