@@ -44,6 +44,10 @@ import xml.etree.ElementTree as ET
 
 from datetime import datetime
 from email    import utils
+from pathlib  import Path
+
+# XXX
+import traceback
 
 
 # __________________________________________________________________________
@@ -95,6 +99,8 @@ def show(level, msg):
     if level == ERROR:
         sys.stdout.buffer.write(red    + b'ruh roh error: ' + normal)
     print(msg)
+    if level == ERROR:
+        traceback.print_stack()
 
 def show_usage_and_exit():
     exec_name = os.path.basename(sys.argv[0])
@@ -112,7 +118,31 @@ def make_new_post_obj():
     obj['pubDate'] = get_date_str()
     return obj
 
-def add_new_post():
+# Try to infer the path of the URL for the current directory. This succeeds if
+# we can locate an rss_root.json file in this directory or a parent directory,
+# in which case that root file is used to determine the publication root dir. In
+# case we can't find the root, then this returns the empty string.
+def guess_path(filename=None):
+    curr_dir = Path.cwd()
+    while True:
+        print(f'curr_dir = {curr_dir}')  # XXX
+        root_filepath = curr_dir / ROOT_FILENAME
+        if root_filepath.exists():
+            print(f'Found root file at {root_filepath}')  # XXX
+            with open(root_filepath) as f:
+                data = json.load(f)
+            root_dir = curr_dir / data['rootDir']
+            print(f'Found root dir as {root_dir}')  # XXX
+            basepath = Path.cwd() if not filename else Path.cwd() / filename
+            rel_path_str = str(basepath.relative_to(root_dir))
+            if rel_path_str == '.':
+                rel_path_str = ''
+            return '/' + rel_path_str
+        if curr_dir.parent == curr_dir:
+            return filename
+        curr_dir = curr_dir.parent
+
+def add_new_post(filename=''):
     if os.path.exists(ITEMS_FILENAME):
         result = check_file(ITEMS_FILENAME, do_print=False)
         if result == ERROR:
@@ -129,6 +159,9 @@ def add_new_post():
     else:
         data = []
     obj = make_new_post_obj()
+    guessed_path = guess_path(filename)
+    if guessed_path:
+        obj['link'] = guessed_path
     with open(ITEMS_FILENAME, 'w') as f:
         json.dump(data + [obj], f, indent=4, sort_keys=True)
     print(f'Wrote template post data to {ITEMS_FILENAME}')
@@ -170,7 +203,7 @@ def check_file(filepath, do_print=True):
                         show(WARNING, f'Default value in item {i}: {field}')
                         print('You might want to customize before publishing')
                     if ret_value != ERROR: ret_value = DEFAULT_PRESENT
-    if basename == ROOT_FILENAME:
+    elif basename == ROOT_FILENAME:
         with open(filepath) as f:
             try:
                 data = json.load(f)
@@ -215,7 +248,8 @@ if __name__ == '__main__':
     action = sys.argv[1]
 
     if action == 'post':
-        add_new_post()
+        filename = sys.argv[2] if len(sys.argv) > 2 else ''
+        add_new_post(filename)
     elif action == 'check':
         if len(sys.argv) < 3:
             pass  # TODO Handle the no-filename case.
