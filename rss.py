@@ -22,6 +22,13 @@
         rss.py root
 
 
+        # Run this command to generate the current rss feed file; this uses the
+        # values of rss_root.json (which may be in a parent dir), and all
+        # descendant rss_items.json files:
+
+        rss.py make
+
+
         # Run this command to verify that rss_{root,items}.json files are
         # correctly formatted. If you run this in the root directory without any
         # parameters, it checks the validity of all rss_{root,items}.json files
@@ -40,7 +47,8 @@ import json
 import os
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
+# Uncomment the line below to enable use of the xml library.
+# import xml.etree.ElementTree as ET
 
 from datetime import datetime
 from email    import utils
@@ -85,6 +93,96 @@ DEFAULT_PRESENT = 'default_present'
 
 
 # __________________________________________________________________________
+# Functions that use the xml library
+
+# I'm leaving these here in case I one day want to actually use the xml library.
+# However, in the meantime, I found that the short alternative below - a total
+# of 36 lines of non-blank/non-comment body code, works as a full replacement.
+# (The xml-using version is 12 lines, so I'd say that I was able to replace my
+#  use case of the xml library with 24 lines of code.)
+
+if False:
+
+    def make_new_xml_tree(root_tag):
+        root_elt = ET.Element(root_tag)
+        tree = ET.ElementTree(root_elt)
+        return tree, root_elt
+
+    def add_elt(parent, tag, text=None):
+        elt = ET.SubElement(parent, tag)
+        if text:
+            elt.text = text
+        return elt
+
+    def append_item(parent, item_dict):
+        item_elt = add_elt(parent, 'item')
+        for key, value in item_dict.items():
+            add_elt(item_elt, key, value)
+
+    def write_xml(tree, file):
+        ET.indent(tree)
+        tree.write(file, encoding='utf-8', xml_declaration=True)
+
+
+# __________________________________________________________________________
+# Functions that replace the xml library
+
+# These functions internally use a json-encoded rss object to temporarily store
+# a tree as it's being built. The format is: there is a dict as the base object.
+# Each dict has a single key representing the tag, and the value is either a
+# string representing the text in the tag, or a list representing the subtags.
+# It's true that this format cannot handle all xml trees, but it suffices for
+# this use case.
+
+# This returns `tree, root_elt`. Use `tree` to print out the xml.
+# Use root_elt as a parent to add things to the tree.
+def make_new_xml_tree(root_tag):
+    tree     = {root_tag: []}
+    root_elt = tree[root_tag]
+    return tree, root_elt
+
+# The `parent` is expected to be a Python list.
+def add_elt(parent, tag, text=None):
+    if text:
+        obj = {tag: text}
+    else:
+        obj = {tag: []}
+    parent.append(obj)
+    return obj[tag]
+
+def append_item(parent, item_dict):
+    item_elt = add_elt(parent, 'item')
+    for key, value in item_dict.items():
+        add_elt(item_elt, key, value)
+
+def write_xml(xml_as_json, file, prefix=None):
+    do_need_post_indent = False
+    do_i_own_f = type(file) is str
+    f = file if not do_i_own_f else open(file, 'w')
+    if prefix is None:  # This is the root call.
+        f.write("<?xml version='1.0' encoding='utf-8'?>\n")
+        prefix = ''
+    if type(xml_as_json) is dict:
+        key = next(iter(xml_as_json))
+        f.write(prefix + f'<{key}>')
+        do_indent = write_xml(xml_as_json[key], f, prefix)
+        if do_indent:
+            f.write(prefix)
+        f.write(f'</{key}>\n')
+    elif type(xml_as_json) is str:
+        f.write(xml_as_json)
+    elif type(xml_as_json) is list:
+        if len(xml_as_json) > 0:
+            f.write('\n')
+            do_need_post_indent = True
+        for item in xml_as_json:
+            write_xml(item, f, prefix + '  ')
+    if do_i_own_f:
+        f.close()
+    return do_need_post_indent
+
+
+# __________________________________________________________________________
 # Functions
 
 def init():
@@ -118,11 +216,11 @@ def make_new_post_obj():
     obj['pubDate'] = get_date_str()
     return obj
 
-# Try to infer the path of the URL for the current directory. This succeeds if
-# we can locate an rss_root.json file in this directory or a parent directory,
-# in which case that root file is used to determine the publication root dir. In
-# case we can't find the root, then this returns the empty string.
-def guess_path(filename=None):
+# If successful, return root_path, root_data, where root_path is the path to the
+# publication root as specified in the root rss file, and root_data is the json
+# data as ready directly from the root rss file. If not successful (such as if
+# the root file could not be found), then return ERROR, ERROR.
+def find_root_data():
     curr_dir = Path.cwd()
     while True:
         print(f'curr_dir = {curr_dir}')  # XXX
@@ -130,17 +228,27 @@ def guess_path(filename=None):
         if root_filepath.exists():
             print(f'Found root file at {root_filepath}')  # XXX
             with open(root_filepath) as f:
-                data = json.load(f)
-            root_dir = curr_dir / data['rootDir']
-            print(f'Found root dir as {root_dir}')  # XXX
-            basepath = Path.cwd() if not filename else Path.cwd() / filename
-            rel_path_str = str(basepath.relative_to(root_dir))
-            if rel_path_str == '.':
-                rel_path_str = ''
-            return '/' + rel_path_str
+                root_data = json.load(f)
+            root_path = curr_dir / root_data['rootDir']
+            print(f'Found root dir as {root_path}')  # XXX
+            return root_path, root_data
         if curr_dir.parent == curr_dir:
-            return filename
+            return ERROR, ERROR
         curr_dir = curr_dir.parent
+
+# Try to infer the path of the URL for the current directory. This succeeds if
+# we can locate an rss_root.json file in this directory or a parent directory,
+# in which case that root file is used to determine the publication root dir. In
+# case we can't find the root, then this returns the empty string.
+def guess_path(filename=None):
+    root_path, root_data = find_root_data()
+    if root_path == ERROR:
+        return filename
+    basepath = Path.cwd() if not filename else Path.cwd() / filename
+    rel_path_str = str(basepath.relative_to(root_path))
+    if rel_path_str == '.':
+        rel_path_str = ''
+    return '/' + rel_path_str
 
 def add_new_post(filename=''):
     if os.path.exists(ITEMS_FILENAME):
@@ -176,6 +284,57 @@ def make_root_json_file():
         with open(ROOT_FILENAME, 'w') as f:
             json.dump(obj, f, indent=4)
         print(f'Wrote template root data to {ROOT_FILENAME}')
+
+def make_rss_file():
+
+    # TODO Print out a warning if any data appears to be template data.
+    # TODO
+    #  * Sort items by pubDate and keep only the top 10.
+    #  * Infer the pubDate of the channel.
+    #  * Infer and add the lastBuildDate.
+
+    root_path, root_data = find_root_data()
+    if root_path == ERROR:
+        show(ERROR, 'Could not file root file here or in any parent dir')
+        exit(1)
+
+    # Start to build the xml object we'll write out.
+    # root = ET.Element('rss')
+    # channel = ET.SubElement(root, 'channel')
+    tree, rss_root = make_new_xml_tree('rss')
+    channel = add_elt(rss_root, 'channel')
+    for field in ['title', 'link', 'description']:
+        add_elt(channel, field, root_data[field])
+
+    # XXX
+    # print('so far tree is:')
+    # print(ET.tostring(root))
+
+    # Walk directories from the root, finding all item json files.
+    if True:  # XXX
+        for root, dirs, files in os.walk(str(root_path)):
+            if ITEMS_FILENAME in files:
+                with (Path(root) / ITEMS_FILENAME).open() as f:
+                    items_data = json.load(f)
+                for item in items_data:
+                    append_item(channel, item)
+                    # XXX
+                    # print('so far tree is:')
+                    # print(ET.tostring(root))
+
+    # Format and write out the xml to disk.
+    # tree = ET.ElementTree(root)
+    # XXX
+    # import ipdb
+    # ipdb.set_trace()
+    # ET.indent(tree)
+    rss_filepath = str(root_path / root_data['rssFilename'])
+    # tree.write(rss_filepath, encoding='utf-8', xml_declaration=True)
+    # TODO HERE write the xml out to disk
+    print(f'Sending in tree={tree}')
+    write_xml(tree, rss_filepath)
+
+    print(f'Wrote RSS feed to the file {rss_filepath}')
 
 # This returns 'good', 'default_present', or 'error'.
 def check_file(filepath, do_print=True):
@@ -259,6 +418,8 @@ if __name__ == '__main__':
             check_file(filename)
     elif action == 'root':
         make_root_json_file()
+    elif action == 'make':
+        make_rss_file()
     else:
         show(ERROR, f'Unrecognized action: {action}')
 
