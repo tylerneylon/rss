@@ -83,11 +83,6 @@ DEFAULT_ROOT_VALUES = {
     'description': 'DESCRIPTION'
 }
 
-# Return values from check_file().
-GOOD = 'good'
-DEFAULT_PRESENT = 'default_present'
-# ERROR re-uses the above global constant.
-
 
 # __________________________________________________________________________
 # Functions that use the xml library
@@ -194,8 +189,9 @@ def show(level, msg):
     if level == ERROR:
         sys.stdout.buffer.write(red    + b'ruh roh error: ' + normal)
     print(msg)
-    if level == ERROR:
-        traceback.print_stack()
+    # XXX
+    # if level == ERROR:
+    #     traceback.print_stack()
 
 def show_usage_and_exit():
     exec_name = os.path.basename(sys.argv[0])
@@ -248,21 +244,19 @@ def guess_path(filename=None):
     return '/' + rel_path_str
 
 def add_new_post(filename=''):
+    data = []
     if os.path.exists(ITEMS_FILENAME):
-        result = check_file(ITEMS_FILENAME, do_print=False)
-        if result == ERROR:
-            show(ERROR, 'Can\'t append to json file due to an error:')
-            check_file(ITEMS_FILENAME)  # To print the error.
-            exit(1)
-        elif result == DEFAULT_PRESENT:
-            show(ERROR, 'I don\'t append to files with uncustomized values:')
-            check_file(ITEMS_FILENAME)  # To print the warning.
-            exit(1)
+        error_msgs = check_file(ITEMS_FILENAME, do_print=False)
+        if len(error_msgs) > 0:
+            msg = f'Please fix the issues below first in {ITEMS_FILENAME}:'
+            show(ERROR, msg)
+            for error_msg in error_msgs:
+                print(' * ' + error_msg)
+            print("Note: I don't support new posts if an existing post has " +
+                  "default values for any fields.")
         else:
             with open(ITEMS_FILENAME) as f:
                 data = json.load(f)
-    else:
-        data = []
     obj = make_new_post_obj()
     guessed_path = guess_path(filename)
     if guessed_path:
@@ -282,7 +276,9 @@ def make_root_json_file():
             json.dump(obj, f, indent=4)
         print(f'Wrote template root data to {ROOT_FILENAME}')
 
-def make_rss_file():
+# If do_dry_run is True, this returns a list of all error messages found.
+# This will be an empty list if everything appears to be in order.
+def make_rss_file(do_dry_run=False):
 
     # TODO Print out a warning if any data appears to be template data.
     # TODO
@@ -290,10 +286,16 @@ def make_rss_file():
     #  * Infer the pubDate of the channel.
     #  * Infer and add the lastBuildDate.
 
+    error_msgs = []
+
     root_path, root_data = find_root_data()
     if root_path == ERROR:
-        show(ERROR, 'Could not file root file here or in any parent dir')
-        exit(1)
+        error_msg = 'Could not file root file here or in any parent dir'
+        if do_dry_run:
+            error_msgs.append(error_msg)
+        else:
+            show(ERROR, error_msg)
+            exit(1)
 
     # Start to build the xml object we'll write out.
     # root = ET.Element('rss')
@@ -317,41 +319,44 @@ def make_rss_file():
 
     print(f'Wrote RSS feed to the file {rss_filepath}')
 
-# This returns 'good', 'default_present', or 'error'.
+# This returns a list of error messages; the list is empty if everything is ok.
 def check_file(filepath, do_print=True):
     # TODO say good if it's all good
-    ret_value = GOOD
+    error_msgs = []
+
+    def handle_error(error_msg, is_warning=False):
+        level = WARNING if is_warning else ERROR
+        if do_print:
+            show(level, error_msg)
+        error_msgs.append(error_msg)
+
     basename = os.path.basename(filepath)
     if basename == ITEMS_FILENAME:
         with open(filepath) as f:
             try:
                 data = json.load(f)
             except json.decoder.JSONDecodeError as err:
-                if do_print:
-                    show(ERROR, f'Unable to parse the JSON in file {filepath}')
-                    print(err)
-                ret_value = ERROR
+                handle_error(f'Unable to parse the JSON in file {filepath}' +
+                              '\n' + str(err))
+                return error_msgs
         required_fields = ['title', 'link', 'description', 'author', 'pubDate']
         for i, item in enumerate(data):
             for field in required_fields:
                 if field not in item:
-                    if do_print:
-                        show(ERROR, f'Missing field in item {i}: {field}')
-                    ret_value = ERROR
+                    handle_error(f'Missing field in item {i}: {field}')
                 elif item[field] == DEFAULT_ITEM_VALUES[field]:
-                    if do_print:
-                        show(WARNING, f'Default value in item {i}: {field}')
-                        print('You might want to customize before publishing')
-                    if ret_value != ERROR: ret_value = DEFAULT_PRESENT
+                    handle_error(
+                            f'Default value in item {i} for {field}',
+                            is_warning=True
+                    )
     elif basename == ROOT_FILENAME:
         with open(filepath) as f:
             try:
                 data = json.load(f)
             except json.decoder.JSONDecodeError as err:
-                if do_print:
-                    show(ERROR, f'Unable to parse the JSON in file {filepath}')
-                    print(err)
-                ret_value = ERROR
+                handle_error(f'Unable to parse the JSON in file {filepath}' +
+                              '\n' + str(err))
+                return error_msgs
         required_fields = [
                 'title',
                 'link',
@@ -362,18 +367,15 @@ def check_file(filepath, do_print=True):
         for field in required_fields:
             defaults = DEFAULT_ROOT_VALUES
             if field not in data:
-                if do_print:
-                    show(ERROR, f'Missing field: {field}')
-                ret_value = ERROR
+                handle_error(f'Missing field: {field}')
             elif field in defaults and data[field] == defaults[field]:
-                if do_print:
-                    show(WARNING, f'Default value in field: {field}')
-                    print('You might want to customize before publishing')
-                if ret_value != ERROR: ret_value = DEFAULT_PRESENT
+                handle_error(
+                        f'Default value found for {field}',
+                        is_warning=True
+                )
     else:
-        if do_print: show(ERROR, f'Invalid rss filename: {basename}')
-        return ERROR
-    return ret_value
+        handle_error(f'Invalid rss filename: {basename}')
+    return error_msgs
 
 
 # __________________________________________________________________________
