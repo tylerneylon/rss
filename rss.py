@@ -308,7 +308,15 @@ def make_rss_file(do_dry_run=False):
     # Walk directories from the root, finding all item json files.
     for root, dirs, files in os.walk(str(root_path)):
         if ITEMS_FILENAME in files:
-            with (Path(root) / ITEMS_FILENAME).open() as f:
+            filepath = str(Path(root) / ITEMS_FILENAME)
+            check_errs = check_file(filepath)
+            if error_msgs:
+                if do_dry_run:
+                    error_msgs += [msg + f' ({filepath})' for msg in check_errs]
+                else:
+                    print(f'\n^^ The above message is for {filepath}.')
+                    exit(1)
+            with open(filepath) as f:
                 items_data = json.load(f)
             for item in items_data:
                 append_item(channel, item)
@@ -317,9 +325,11 @@ def make_rss_file(do_dry_run=False):
     rss_filepath = str(root_path / root_data['rssFilename'])
     write_xml(tree, rss_filepath)
 
-    print(f'Wrote RSS feed to the file {rss_filepath}')
+    print(f'Success: Wrote RSS feed to the file {rss_filepath}')
 
 # This returns a list of error messages; the list is empty if everything is ok.
+# If do_print is False, this prints nothing. Otherwise, this prints only errors
+# and warnings.
 def check_file(filepath, do_print=True):
     # TODO say good if it's all good
     error_msgs = []
@@ -375,6 +385,7 @@ def check_file(filepath, do_print=True):
                 )
     else:
         handle_error(f'Invalid rss filename: {basename}')
+
     return error_msgs
 
 
@@ -394,11 +405,15 @@ if __name__ == '__main__':
         add_new_post(filename)
     elif action == 'check':
         if len(sys.argv) < 3:
+            # TODO HERE: With no filename, directly call make as a dry run.
+            #            Use the result to print out any issues.
             pass  # TODO Handle the no-filename case.
             exit(0)
         else:
             filename = sys.argv[2]
-            check_file(filename)
+            error_msgs = check_file(filename)
+            if not error_msgs:
+                print('Jolly good! (no errors)')
     elif action == 'root':
         make_root_json_file()
     elif action == 'make':
