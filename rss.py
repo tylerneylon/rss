@@ -54,9 +54,6 @@ from datetime import datetime
 from email    import utils
 from pathlib  import Path
 
-# XXX
-import traceback
-
 
 # __________________________________________________________________________
 # Globals and Constants
@@ -212,7 +209,6 @@ def get_date_str():
 
 def make_new_post_obj():
     obj = copy.copy(DEFAULT_ITEM_VALUES)
-    # TODO customize the `link` as much as possible.
     obj['pubDate'] = get_date_str()
     return obj
 
@@ -222,6 +218,7 @@ def make_new_post_obj():
 # the root file could not be found), then return ERROR, ERROR.
 def find_root_data():
     curr_dir = Path.cwd()
+    # TODO Drop all the print statements here.
     while True:
         print(f'curr_dir = {curr_dir}')  # XXX
         root_filepath = curr_dir / ROOT_FILENAME
@@ -306,40 +303,24 @@ def make_rss_file():
     for field in ['title', 'link', 'description']:
         add_elt(channel, field, root_data[field])
 
-    # XXX
-    # print('so far tree is:')
-    # print(ET.tostring(root))
-
     # Walk directories from the root, finding all item json files.
-    if True:  # XXX
-        for root, dirs, files in os.walk(str(root_path)):
-            if ITEMS_FILENAME in files:
-                with (Path(root) / ITEMS_FILENAME).open() as f:
-                    items_data = json.load(f)
-                for item in items_data:
-                    append_item(channel, item)
-                    # XXX
-                    # print('so far tree is:')
-                    # print(ET.tostring(root))
+    for root, dirs, files in os.walk(str(root_path)):
+        if ITEMS_FILENAME in files:
+            with (Path(root) / ITEMS_FILENAME).open() as f:
+                items_data = json.load(f)
+            for item in items_data:
+                append_item(channel, item)
 
     # Format and write out the xml to disk.
-    # tree = ET.ElementTree(root)
-    # XXX
-    # import ipdb
-    # ipdb.set_trace()
-    # ET.indent(tree)
     rss_filepath = str(root_path / root_data['rssFilename'])
-    # tree.write(rss_filepath, encoding='utf-8', xml_declaration=True)
-    # TODO HERE write the xml out to disk
-    print(f'Sending in tree={tree}')
     write_xml(tree, rss_filepath)
 
     print(f'Wrote RSS feed to the file {rss_filepath}')
 
 # This returns 'good', 'default_present', or 'error'.
 def check_file(filepath, do_print=True):
+    # TODO say good if it's all good
     ret_value = GOOD
-    # TODO Add validity check for rss_root.json.
     basename = os.path.basename(filepath)
     if basename == ITEMS_FILENAME:
         with open(filepath) as f:
