@@ -399,8 +399,6 @@ def make_rss_file(do_dry_run=False):
     root_path, root_data = find_root_data()
 
     # Start to build the xml object we'll write out.
-    # root = ET.Element('rss')
-    # channel = ET.SubElement(root, 'channel')
     tree, rss_root = make_new_xml_tree('rss', {'version': '2.0'})
     channel = add_elt(rss_root, 'channel')
     for field in ['title', 'link', 'description']:
@@ -408,6 +406,7 @@ def make_rss_file(do_dry_run=False):
 
     # Walk directories from the root, finding all item json files.
     cwd = Path.cwd()
+    all_items = []
     for root, dirs, files in os.walk(str(root_path)):
         if ITEMS_FILENAME in files:
             filepath = str(Path(root) / ITEMS_FILENAME)
@@ -424,11 +423,19 @@ def make_rss_file(do_dry_run=False):
                     exit(1)
             with open(filepath) as f:
                 items_data = json.load(f)
-            for item in items_data:
-                append_item(channel, item)
+            all_items += items_data
 
     if do_dry_run:
         return error_msgs
+
+    # Sort items by date; keep the top 10.
+    all_items = sorted(
+            all_items,
+            key = lambda item: utils.parsedate_to_datetime(item['pubDate']),
+            reverse = True
+    )
+    for item in all_items[:10]:
+        append_item(channel, item)
 
     # Format and write out the xml to disk.
     rss_filepath = str(root_path / root_data['rssFilename'])
@@ -440,7 +447,6 @@ def make_rss_file(do_dry_run=False):
 # If do_print is False, this prints nothing. Otherwise, this prints only errors
 # and warnings.
 def check_file(filepath, do_print=True):
-    # TODO say good if it's all good
     error_msgs = []
 
     def handle_error(error_msg, is_warning=False):
