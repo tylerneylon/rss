@@ -46,7 +46,8 @@ the resulting file into production.
 You will probably also want to include a `link` element like this in the `head`
 of your landing page:
 
-    <link data-rh="true" rel="alternate" type="application/rss+xml" title="RSS" href="https://YOURDOMAIN.com/feed"/>
+    <link data-rh="true" rel="alternate" type="application/rss+xml"
+     title="RSS" href="https://YOURDOMAIN.com/feed"/>
 
 ## Help string
 
