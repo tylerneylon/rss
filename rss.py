@@ -189,9 +189,6 @@ def show(level, msg):
     if level == ERROR:
         sys.stdout.buffer.write(red    + b'ruh roh error: ' + normal)
     print(msg)
-    # XXX
-    # if level == ERROR:
-    #     traceback.print_stack()
 
 def show_usage_and_exit():
     exec_name = os.path.basename(sys.argv[0])
@@ -320,12 +317,10 @@ def make_rss_file(do_dry_run=False):
         add_elt(channel, field, root_data[field])
 
     # Walk directories from the root, finding all item json files.
-    print('About to walk the dir tree')  # XXX
     cwd = Path.cwd()
     for root, dirs, files in os.walk(str(root_path)):
         if ITEMS_FILENAME in files:
             filepath = str(Path(root) / ITEMS_FILENAME)
-            print(f'Running check_file() for {filepath}')  # XXX
             check_errs = check_file(filepath, do_print)
             rel_path = str((Path(root) / ITEMS_FILENAME).relative_to(cwd))
             if check_errs:
