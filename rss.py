@@ -243,7 +243,7 @@ def guess_path(filename=None):
     rel_path_str = str(basepath.relative_to(root_path))
     if rel_path_str == '.':
         rel_path_str = ''
-    return '/' + rel_path_str
+    return 'http://' + rel_path_str
 
 def add_new_post(filename=''):
     data = []
