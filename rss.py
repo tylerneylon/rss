@@ -412,7 +412,10 @@ def make_rss_file(do_dry_run=False):
         if ITEMS_FILENAME in files:
             filepath = str(Path(root) / ITEMS_FILENAME)
             check_errs = check_file(filepath, do_print)
-            rel_path = str((Path(root) / ITEMS_FILENAME).relative_to(cwd))
+            try:
+                rel_path = str((Path(root) / ITEMS_FILENAME).relative_to(cwd))
+            except ValueError:
+                rel_path = filepath
             if check_errs:
                 if do_dry_run:
                     error_msgs += [f'({rel_path}) {msg}' for msg in check_errs]
