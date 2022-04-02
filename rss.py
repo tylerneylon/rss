@@ -518,6 +518,8 @@ if __name__ == '__main__':
                 for error_msg in error_msgs:
                     print(' * ' + error_msg)
             else:
+                root_json_filepath = find_root_json_filepath()
+                print(f'The root json file is {root_json_filepath}')
                 print('Ship shape! (no errors found)')
         else:
             filename = sys.argv[2]
