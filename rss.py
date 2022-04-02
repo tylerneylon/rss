@@ -36,6 +36,10 @@
 
         rss.py check [json_filename]
 
+    You can set a default author name in the root json file by providing a value
+    for the field name "defaultAuthor". If you set this, then new posts will
+    automatically have that author assigned to them.
+
 """
 
 
@@ -337,6 +341,9 @@ def add_new_post(filename='', sevendate_str=None):
                 data = json.load(f)
     obj = make_new_post_obj(sevendate_str)
     guessed_path = guess_path(filename)
+    _, root_data = find_root_data()
+    if root_data and 'defaultAuthor' in root_data:
+        obj['author'] = root_data['defaultAuthor']
     if guessed_path:
         obj['link'] = guessed_path
     with open(ITEMS_FILENAME, 'w') as f:
