@@ -373,11 +373,6 @@ def check_for_sevendate_str(argv):
 # This will be an empty list if everything appears to be in order.
 def make_rss_file(do_dry_run=False):
 
-    # TODO
-    #  * Sort items by pubDate and keep only the top 10.
-    #  * Infer the pubDate of the channel.
-    #  * Infer and add the lastBuildDate.
-
     error_msgs = []
 
     do_print = not do_dry_run
@@ -428,12 +423,20 @@ def make_rss_file(do_dry_run=False):
     if do_dry_run:
         return error_msgs
 
-    # Sort items by date; keep the top 10.
+    # Sort items by date.
     all_items = sorted(
             all_items,
             key = lambda item: utils.parsedate_to_datetime(item['pubDate']),
             reverse = True
     )
+
+    # Determine the channel's overall pubDate and lastBuildDate (which is now).
+    if all_items:
+        add_elt(channel, 'pubDate', all_items[0]['pubDate'])
+    now = datetime.now()
+    add_elt(channel, 'lastBuildDate', utils.format_datetime(now.astimezone()))
+
+    # Include the most-recent 10 items.
     for item in all_items[:10]:
         append_item(channel, item)
 
