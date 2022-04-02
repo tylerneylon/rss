@@ -208,26 +208,31 @@ def make_new_post_obj():
     obj['pubDate'] = get_date_str()
     return obj
 
+# On success, this returns a Path object pointing to the root json file.
+# If the file can't be found, this returns ERROR.
+# This doesn't print anything in either case.
+def find_root_json_filepath():
+    curr_dir = Path.cwd()
+    while True:
+        root_json_filepath = curr_dir / ROOT_FILENAME
+        if root_json_filepath.exists():
+            return root_json_filepath
+        if curr_dir.parent == curr_dir:
+            return ERROR
+        curr_dir = curr_dir.parent
+
 # If successful, return root_path, root_data, where root_path is the path to the
 # publication root as specified in the root rss file, and root_data is the json
 # data as ready directly from the root rss file. If not successful (such as if
 # the root file could not be found), then return ERROR, ERROR.
 def find_root_data():
-    curr_dir = Path.cwd()
-    # TODO Drop all the print statements here.
-    while True:
-        print(f'curr_dir = {curr_dir}')  # XXX
-        root_filepath = curr_dir / ROOT_FILENAME
-        if root_filepath.exists():
-            print(f'Found root file at {root_filepath}')  # XXX
-            with open(root_filepath) as f:
-                root_data = json.load(f)
-            root_path = curr_dir / root_data['rootDir']
-            print(f'Found root dir as {root_path}')  # XXX
-            return root_path, root_data
-        if curr_dir.parent == curr_dir:
-            return ERROR, ERROR
-        curr_dir = curr_dir.parent
+    root_json_filepath = find_root_json_filepath()
+    if root_json_filepath == ERROR:
+        return ERROR, ERROR
+    with open(root_json_filepath) as f:
+        root_data = json.load(f)
+    root_path = root_json_filepath.parent / root_data['rootDir']
+    return root_path, root_data
 
 # Try to infer the path of the URL for the current directory. This succeeds if
 # we can locate an rss_root.json file in this directory or a parent directory,
@@ -288,14 +293,23 @@ def make_rss_file(do_dry_run=False):
 
     error_msgs = []
 
-    root_path, root_data = find_root_data()
-    if root_path == ERROR:
+    do_print = not do_dry_run
+    root_json_filepath = find_root_json_filepath()
+    if root_json_filepath == ERROR:
         error_msg = 'Could not file root file here or in any parent dir'
-        if do_dry_run:
-            error_msgs.append(error_msg)
-        else:
+        if not do_dry_run:
             show(ERROR, error_msg)
             exit(1)
+        return [error_msg]
+
+    error_msgs = check_file(root_json_filepath, do_print)
+    if error_msgs:
+        if do_dry_run:
+            error_msgs = [f'(In root json file) {msg}' for msg in error_msgs]
+        else:
+            print(f'^^ The above message is for {root_json_filepath}.\n')
+            exit(1)
+    root_path, root_data = find_root_data()
 
     # Start to build the xml object we'll write out.
     # root = ET.Element('rss')
@@ -306,20 +320,27 @@ def make_rss_file(do_dry_run=False):
         add_elt(channel, field, root_data[field])
 
     # Walk directories from the root, finding all item json files.
+    print('About to walk the dir tree')  # XXX
+    cwd = Path.cwd()
     for root, dirs, files in os.walk(str(root_path)):
         if ITEMS_FILENAME in files:
             filepath = str(Path(root) / ITEMS_FILENAME)
-            check_errs = check_file(filepath)
-            if error_msgs:
+            print(f'Running check_file() for {filepath}')  # XXX
+            check_errs = check_file(filepath, do_print)
+            rel_path = str((Path(root) / ITEMS_FILENAME).relative_to(cwd))
+            if check_errs:
                 if do_dry_run:
-                    error_msgs += [msg + f' ({filepath})' for msg in check_errs]
+                    error_msgs += [f'({rel_path}) {msg}' for msg in check_errs]
                 else:
-                    print(f'\n^^ The above message is for {filepath}.')
+                    print(f'^^ The above message is for {filepath}.\n')
                     exit(1)
             with open(filepath) as f:
                 items_data = json.load(f)
             for item in items_data:
                 append_item(channel, item)
+
+    if do_dry_run:
+        return error_msgs
 
     # Format and write out the xml to disk.
     rss_filepath = str(root_path / root_data['rssFilename'])
@@ -405,10 +426,13 @@ if __name__ == '__main__':
         add_new_post(filename)
     elif action == 'check':
         if len(sys.argv) < 3:
-            # TODO HERE: With no filename, directly call make as a dry run.
-            #            Use the result to print out any issues.
-            pass  # TODO Handle the no-filename case.
-            exit(0)
+            error_msgs = make_rss_file(do_dry_run=True)
+            if error_msgs:
+                print('The following issues were found:')
+                for error_msg in error_msgs:
+                    print(' * ' + error_msg)
+            else:
+                print('Ship shape! (no errors found)')
         else:
             filename = sys.argv[2]
             error_msgs = check_file(filename)
