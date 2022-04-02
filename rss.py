@@ -11,7 +11,7 @@
         # When you have a new post, cd into the directory of that post and run
         # this, then edit the fields in the rss_items.json file:
 
-        rss.py post [filename_of_post_html_file]
+        rss.py post [filename_of_post_html_file] [-7 7date_str]
 
 
         # Run this command to designate the local root directory of your
@@ -51,6 +51,7 @@ import sys
 # import xml.etree.ElementTree as ET
 
 from datetime import datetime
+from datetime import timedelta
 from email    import utils
 from pathlib  import Path
 
@@ -185,6 +186,69 @@ def write_xml(xml_as_json, file, prefix=None):
 
 
 # __________________________________________________________________________
+# Functions to support 7date notation
+
+# This expects n and b to be integers with n >= 0 and b > 1.
+# This returns the number n written in base b, as a string.
+def tobase(n, b):
+    assert n >= 0 and b > 1
+    digits = []
+    while n > 0:
+        digits.append(n % b)
+        n //= b
+    digits = digits if digits else [0]
+    return ''.join(map(str, reversed(digits)))
+
+# This converts string s, which is expected to have digits 0 through (b-1),
+# into a Python number, which is returned.
+# This assumes 1 < b <= 10, and that s represents a nonnegative integer.
+def frombase(s, b):
+    assert 1 < b <= 10
+    n = 0
+    for char in s:
+        n *= b
+        d = ord(char) - ord('0')
+        if not 0 <= d < b:
+            raise ValueError(f'Invalid digit in base-{b} number "{s}"')
+        n += d
+    return n
+
+# This expects a valid 7date string (either standard or digital format); it
+# returns a datetime object for the beginning of the given day.
+# If there is a parsing error, this throws a ValueError.
+def to_datetime(sevendate_str):
+    sevendate_str = sevendate_str.strip()  # Ignore surrounding whitespace.
+    dot = sevendate_str.find('.')
+    if dot == -1:
+        # Assume it's in digital format, which is YYYY-DDDD.
+        year_str = sevendate_str[0:4]
+        day_str  = sevendate_str[5:]
+    else:
+        # Assume it's in standard format, which is D+.YYYY.
+        day_str  = sevendate_str[:dot]
+        year_str = sevendate_str[dot + 1:]
+    day_num  = frombase(day_str, 7)
+    year_num = int(year_str)
+    time = datetime(year_num, 1, 1) + timedelta(days=day_num)
+    return time
+
+# This expects either None or a datetime string. If you pass in None (or no
+# arguments), it provides the 7date string.
+def to_string(time=None, do_use_digital_format=False):
+    if time is None:
+        time = datetime.now()
+    year = str(time.year)
+    day  = tobase(time.timetuple().tm_yday - 1, 7)
+    if do_use_digital_format:
+        # The format specifier "0>4s" means "right-align (>) the string (s) in
+        # `day`, and pad with '0' chars to achieve minimum length 4."
+        # https://peps.python.org/pep-3101/#standard-format-specifiers
+        return f'{year}-{day:0>4s}'
+    else:
+        return f'{day}.{year}'
+
+
+# __________________________________________________________________________
 # Functions
 
 def init():
@@ -207,12 +271,14 @@ def show_usage_and_exit():
 
 # In the future, this may take an optional argument with some indication of
 # the timestamp for which we provide a date string.
-def get_date_str():
-    return utils.format_datetime(datetime.now().astimezone())
+def get_date_str(time=None):
+    time = time if time else datetime.now()
+    return utils.format_datetime(time.astimezone())
 
-def make_new_post_obj():
+def make_new_post_obj(sevendate_str=None):
     obj = copy.copy(DEFAULT_ITEM_VALUES)
-    obj['pubDate'] = get_date_str()
+    time = to_datetime(sevendate_str) if sevendate_str else None
+    obj['pubDate'] = get_date_str(time)
     return obj
 
 # On success, this returns a Path object pointing to the root json file.
@@ -255,7 +321,7 @@ def guess_path(filename=None):
         rel_path_str = ''
     return 'http://' + rel_path_str
 
-def add_new_post(filename=''):
+def add_new_post(filename='', sevendate_str=None):
     data = []
     if os.path.exists(ITEMS_FILENAME):
         error_msgs = check_file(ITEMS_FILENAME, do_print=False)
@@ -269,7 +335,7 @@ def add_new_post(filename=''):
         else:
             with open(ITEMS_FILENAME) as f:
                 data = json.load(f)
-    obj = make_new_post_obj()
+    obj = make_new_post_obj(sevendate_str)
     guessed_path = guess_path(filename)
     if guessed_path:
         obj['link'] = guessed_path
@@ -288,11 +354,18 @@ def make_root_json_file():
             json.dump(obj, f, indent=4)
         print(f'Wrote template root data to {ROOT_FILENAME}')
 
+# If there is no 7date string, this returns None; otherwise it returns the 7date
+# string.
+def check_for_sevendate_str(argv):
+    for i in range(len(argv) - 1):
+        if argv[i] == '-7':
+            return argv[i + 1]
+    return None
+
 # If do_dry_run is True, this returns a list of all error messages found.
 # This will be an empty list if everything appears to be in order.
 def make_rss_file(do_dry_run=False):
 
-    # TODO Print out a warning if any data appears to be template data.
     # TODO
     #  * Sort items by pubDate and keep only the top 10.
     #  * Infer the pubDate of the channel.
@@ -428,7 +501,8 @@ if __name__ == '__main__':
 
     if action == 'post':
         filename = sys.argv[2] if len(sys.argv) > 2 else ''
-        add_new_post(filename)
+        sevendate_str = check_for_sevendate_str(sys.argv)
+        add_new_post(filename, sevendate_str)
     elif action == 'check':
         if len(sys.argv) < 3:
             error_msgs = make_rss_file(do_dry_run=True)
