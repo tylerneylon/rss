@@ -121,26 +121,30 @@ if False:
 
 # These functions internally use a json-encoded rss object to temporarily store
 # a tree as it's being built. The format is: there is a dict as the base object.
-# Each dict has a single key representing the tag, and the value is either a
-# string representing the text in the tag, or a list representing the subtags.
+# Each dict has at least the key "tag" (with the tag name as value).
+# It may also have the key "subtags" with a list of subtags, and potentially
+# "text" with a string as the text.
 # It's true that this format cannot handle all xml trees, but it suffices for
 # this use case.
 
 # This returns `tree, root_elt`. Use `tree` to print out the xml.
 # Use root_elt as a parent to add things to the tree.
-def make_new_xml_tree(root_tag):
-    tree     = {root_tag: []}
-    root_elt = tree[root_tag]
+def make_new_xml_tree(root_tag, attribs=None):
+    tree     = {'tag': root_tag, 'value': []}
+    root_elt = tree['value']
+    if attribs:
+        tree['attribs'] = attribs
     return tree, root_elt
 
 # The `parent` is expected to be a Python list.
-def add_elt(parent, tag, text=None):
+def add_elt(parent, tag, text=None, attribs=None):
+    obj = {'tag': tag, 'value': []}
     if text:
-        obj = {tag: text}
-    else:
-        obj = {tag: []}
+        obj['text'] = text
+    if attribs:
+        obj['attribs'] = attribs
     parent.append(obj)
-    return obj[tag]
+    return obj['value']
 
 def append_item(parent, item_dict):
     item_elt = add_elt(parent, 'item')
@@ -155,12 +159,18 @@ def write_xml(xml_as_json, file, prefix=None):
         f.write("<?xml version='1.0' encoding='utf-8'?>\n")
         prefix = ''
     if type(xml_as_json) is dict:
-        key = next(iter(xml_as_json))
-        f.write(prefix + f'<{key}>')
-        do_indent = write_xml(xml_as_json[key], f, prefix)
+        tag = xml_as_json['tag']
+        tag_str = f'<{tag}>'
+        if 'attribs' in xml_as_json:
+            attrib_items = xml_as_json['attribs'].items()
+            attrib_str = ' '.join([f'{k}="{v}"' for k, v in attrib_items])
+            tag_str = f'<{tag} {attrib_str}>'
+        f.write(prefix + tag_str)
+        value_key = 'text' if 'text' in xml_as_json else 'value'
+        do_indent = write_xml(xml_as_json[value_key], f, prefix)
         if do_indent:
             f.write(prefix)
-        f.write(f'</{key}>\n')
+        f.write(f'</{tag}>\n')
     elif type(xml_as_json) is str:
         f.write(xml_as_json)
     elif type(xml_as_json) is list:
@@ -311,7 +321,7 @@ def make_rss_file(do_dry_run=False):
     # Start to build the xml object we'll write out.
     # root = ET.Element('rss')
     # channel = ET.SubElement(root, 'channel')
-    tree, rss_root = make_new_xml_tree('rss')
+    tree, rss_root = make_new_xml_tree('rss', {'version': '2.0'})
     channel = add_elt(rss_root, 'channel')
     for field in ['title', 'link', 'description']:
         add_elt(channel, field, root_data[field])
