@@ -25,34 +25,38 @@ feed file and push that into production.
 After installing this tool (assuming you execute the `ln` command above), you
 can initiate a new local directory by running `rss root`. This will create a
 file called `rss_root.json` in the current directory, which ought to be at or
-above the top of the directory tree for your site. (I keep mine above the tree
-so that I can push the full tree and my `rss_root.json` file is not part of my
-site.) Once you create this file, you may want to edit the file to set your own
-personal website title, link, description, `rootDir` (the directory that
-represents the root of your site), and `rssFilename` (the file name you choose
-for your rss feed). You may optionall set a `defaultAuthor` value if you
+above the top of the directory tree for your site. I keep mine above the tree
+so that I can push the full tree, and yet my `rss_root.json` file is not part of
+my site. Once you create this file (`rss_root.json`), you may want to edit it to
+set your own personal website title, link, description, `rootDir` (the directory
+that represents the root of your site), and `rssFilename` (the file name you
+choose for your rss feed). You may optionally set a `defaultAuthor` value if you
 typically have a single author of your posts.
 
 After that, each time you add a new post, cd into the directory of the post and
-run, for example `rss post my_post_name.html`. This will create a new entry in
-the local `rss_items.json` file. You edit that file to set the title and
+run, for example:
+
+    rss post my_post_name.html
+
+This will create a new entry in
+the local `rss_items.json` file (creating that file if needed).
+Edit that file to set the title and
 description of your post (and possibly the author or date if you'd like to
 customize those). `rss.py` won't allow you to compile a feed file if you leave
 any default values in your json files, so you must fill out those values.
 
-Whenever you're ready to push an updated feed file, run `rss make` and that push
+Whenever you're ready to push an updated feed file, run `rss make` and push
 the resulting file into production.
 
-You will probably also want to include a `link` element like this in the `head`
+You'll probably also want to include a `link` element like this in the `head`
 of your landing page:
 
     <link data-rh="true" rel="alternate" type="application/rss+xml"
-     title="RSS" href="https://YOURDOMAIN.com/feed"/>
+     title="RSS" href="https://YOURDOMAIN.com/RSS_FILENAME"/>
 
 ## Help string
 
-Here's a shorter version of the above description:
-
+Here's the help string for `rss.py`:
 
     rss.py
 
@@ -89,6 +93,9 @@ Here's a shorter version of the above description:
 
         rss.py check [json_filename]
 
+    To be clear, it is expected that you will be editing the json files created
+    by rss.py to make sure all values are correct for your posts and site.
     You can set a default author name in the root json file by providing a value
     for the field name "defaultAuthor". If you set this, then new posts will
     automatically have that author assigned to them.
+

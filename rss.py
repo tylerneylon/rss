@@ -36,6 +36,8 @@
 
         rss.py check [json_filename]
 
+    To be clear, it is expected that you will be editing the json files created
+    by rss.py to make sure all values are correct for your posts and site.
     You can set a default author name in the root json file by providing a value
     for the field name "defaultAuthor". If you set this, then new posts will
     automatically have that author assigned to them.
