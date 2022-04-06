@@ -51,15 +51,17 @@
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 # Uncomment the line below to enable use of the xml library.
 # import xml.etree.ElementTree as ET
 
-from datetime import datetime
-from datetime import timedelta
-from email    import utils
-from pathlib  import Path
+from datetime     import datetime
+from datetime     import timedelta
+from email        import utils
+from pathlib      import Path
+from urllib.parse import urlparse
 
 
 # __________________________________________________________________________
@@ -90,6 +92,8 @@ DEFAULT_ROOT_VALUES = {
     'description': 'DESCRIPTION'
 }
 
+http_re = re.compile('^https?:')
+
 
 # __________________________________________________________________________
 # Functions that use the xml library
@@ -117,6 +121,7 @@ if False:
         item_elt = add_elt(parent, 'item')
         for key, value in item_dict.items():
             add_elt(item_elt, key, value)
+        return item_elt
 
     def write_xml(tree, file):
         ET.indent(tree)
@@ -157,6 +162,7 @@ def append_item(parent, item_dict):
     item_elt = add_elt(parent, 'item')
     for key, value in item_dict.items():
         add_elt(item_elt, key, value)
+    return item_elt
 
 def write_xml(xml_as_json, file, prefix=None):
     do_need_post_indent = False
@@ -325,7 +331,7 @@ def guess_path(filename=None):
     rel_path_str = str(basepath.relative_to(root_path))
     if rel_path_str == '.':
         rel_path_str = ''
-    return 'http://' + rel_path_str
+    return rel_path_str
 
 def add_new_post(filename='', sevendate_str=None):
     data = []
@@ -374,6 +380,8 @@ def check_for_sevendate_str(argv):
 # If do_dry_run is True, this returns a list of all error messages found.
 # This will be an empty list if everything appears to be in order.
 def make_rss_file(do_dry_run=False):
+
+    global http_re
 
     error_msgs = []
 
@@ -438,9 +446,19 @@ def make_rss_file(do_dry_run=False):
     now = datetime.now()
     add_elt(channel, 'lastBuildDate', utils.format_datetime(now.astimezone()))
 
+    # Determine the root protocol and domain name.
+    # This uses root_data['link'].
+    parsed_url = urlparse(root_data['link'])
+    url_prefix = f'{parsed_url.scheme}://{parsed_url.netloc}/'
+
     # Include the most-recent 10 items.
     for item in all_items[:10]:
-        append_item(channel, item)
+        # Fully qualify links as needed.
+        if not http_re.match(item['link']):
+            item['link'] = url_prefix + item['link']
+        item_elt = append_item(channel, item)
+        # Add a guid per item.
+        add_elt(item_elt, 'guid', item['link'], {'isPermaLink': 'false'})
 
     # Format and write out the xml to disk.
     rss_filepath = str(root_path / root_data['rssFilename'])
