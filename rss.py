@@ -82,7 +82,7 @@ ERROR   = 2
 DEFAULT_ITEM_VALUES = {
     'title'      : 'TITLE',
     'link'       : 'URL',
-    'description': 'DESCRIPTION',
+    'description': '<![CDATA[DESCRIPTION <img src="IMG_SRC">]]>',
     'author'     : 'AUTHOR',
     'pubDate'    : 'DATE'
 }
